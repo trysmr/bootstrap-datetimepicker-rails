@@ -119,9 +119,25 @@
       this.update();
       this.showMode();
       this._attachDatePickerEvents();
+      if (this.options.minuteStepping !== 1) {
+        rInterval = this.options.minuteStepping;
+        this._date.setUTCMinutes((Math.round(this._date.getUTCMinutes() / rInterval) * rInterval) % 60);
+        this._date.setUTCSeconds(0);
+      }
     },
 
     show: function(e) {
+
+      var input = this.$element.find('input');
+      if (input.val() === '') {
+        if (this.options.minuteStepping !== 1) {
+          rInterval = this.options.minuteStepping;
+          this._date.setUTCMinutes((Math.round(this._date.getUTCMinutes() / rInterval) * rInterval) % 60);
+          this.setValue(this._date);
+        }
+        this.notifyChange('', e.type);
+      }
+
       this.widget.show();
       this.height = this.component ? this.component.outerHeight() : this.$element.outerHeight();
       this.place();
@@ -260,22 +276,46 @@
     },
 
     place: function(){
-      var position = 'absolute';
-      var offset = this.component ? this.component.offset() : this.$element.offset();
+      var position = 'absolute',
+          offset = this.component ? this.component.offset() : this.$element.offset(),
+          $window = $(window),
+          placePosition;
+
       this.width = this.component ? this.component.outerWidth() : this.$element.outerWidth();
       offset.top = offset.top + this.height;
 
-      var $window = $(window);
-      
-      if ( this.options.width != undefined ) {
+      if (this.options.direction === 'up') {
+        placePosition = 'top';
+      }
+      else if (this.options.direction === 'bottom') {
+        placePosition = 'bottom';
+      }
+      else if (this.options.direction === 'auto') {
+        if (offset.top + this.widget.height() > $window.height() + $window.scrollTop() && this.widget.height() + this.$element.outerHeight() < offset.top) {
+          placePosition = 'top';
+        }
+        else {
+          placePosition = 'bottom';
+        }
+      }
+      if (placePosition === 'top') {
+        offset.bottom = $window.height() - offset.top + this.$element.outerHeight() + 3;
+        this.widget.addClass('top').removeClass('bottom');
+      }
+      else {
+        offset.top += 1;
+        this.widget.addClass('bottom').removeClass('top');
+      }
+
+      if ( this.options.width !== undefined ) {
         this.widget.width( this.options.width );
       }
-      
+
       if ( this.options.orientation == 'left' ) {
         this.widget.addClass( 'left-oriented' );
         offset.left   = offset.left - this.widget.width() + 20;
       }
-      
+
       if (this._isInFixed()) {
         position = 'fixed';
         offset.top -= $window.scrollTop();
@@ -291,12 +331,24 @@
         this.widget.removeClass('pull-right');
       }
 
-      this.widget.css({
-        position: position,
-        top: offset.top,
-        left: offset.left,
-        right: offset.right
-      });
+      if (placePosition === 'top') {
+        this.widget.css({
+          position: position,
+          bottom: offset.bottom,
+          top: 'auto',
+          left: offset.left,
+          right: offset.right
+        });
+      }
+      else {
+        this.widget.css({
+          position: position,
+          top: offset.top,
+          bottom: 'auto',
+          left: offset.left,
+          right: offset.right
+        });
+      }
     },
 
     notifyChange: function(){
@@ -491,17 +543,24 @@
     },
 
     fillMinutes: function() {
-      var table = this.widget.find(
-        '.timepicker .timepicker-minutes table');
+      var table = this.widget.find('.timepicker .timepicker-minutes table'),
+          html = '',
+          current = 0,
+          i, j, step = this.options.minuteStepping;
       table.parent().hide();
-      var html = '';
-      var current = 0;
-      for (var i = 0; i < 5; i++) {
+      if (step === 1) {
+        step = 5;
+      }
+      for (i = 0; i < Math.ceil(60 / step / 4); i++) {
         html += '<tr>';
-        for (var j = 0; j < 4; j += 1) {
-          var c = current.toString();
-          html += '<td class="minute">' + padLeft(c, 2, '0') + '</td>';
-          current += 3;
+        for (j = 0; j < 4; j += 1) {
+          if (current < 60) {
+            html += '<td class="minute">' + padLeft(current.toString(), 2, '0') + '</td>';
+            current += step;
+          }
+          else {
+            html += '<td></td>';
+          }
         }
         html += '</tr>';
       }
@@ -643,7 +702,7 @@
       },
 
       incrementMinutes: function(e) {
-        this._date.setUTCMinutes(this._date.getUTCMinutes() + 1);
+        this._date.setUTCMinutes(this._date.getUTCMinutes() + this.options.minuteStepping);
       },
 
       incrementSeconds: function(e) {
@@ -655,7 +714,7 @@
       },
 
       decrementMinutes: function(e) {
-        this._date.setUTCMinutes(this._date.getUTCMinutes() - 1);
+        this._date.setUTCMinutes(this._date.getUTCMinutes() - this.options.minuteStepping);
       },
 
       decrementSeconds: function(e) {
@@ -1095,7 +1154,9 @@
     pickSeconds: true,
     startDate: -Infinity,
     endDate: Infinity,
-    collapse: true
+    collapse: true,
+    direction: 'auto',
+    minuteStepping: 5
   };
   $.fn.datetimepicker.Constructor = DateTimePicker;
   var dpgId = 0;
